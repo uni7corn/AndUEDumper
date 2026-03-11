@@ -1,22 +1,95 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.16)
 
-project(UEDump3r_${CMAKE_ANDROID_ARCH})
-project(shared_UEDump3r_${CMAKE_ANDROID_ARCH})
+# -----------------------------
+# Options
+# -----------------------------
+option(BUILD_SHARED "Build shared linrary" OFF)
+option(KT_DISABLE_KEYSTONE "Disable keystone support" ON)
 
-set(KITTYMEMORY_PATH ../deps/KittyMemoryEx/KittyMemoryEx)
-file(GLOB KITTYMEMORY_SRC ${KITTYMEMORY_PATH}/*.cpp)
+project(UEDump3r
+        VERSION 1.0
+        LANGUAGES CXX)
 
-set(DEPS_PATH ../deps)
+# -----------------------------
+# C++ standard
+# -----------------------------
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS} -O0 -g -std=c++20 -fexceptions -DDEBUG -DkNO_KEYSTONE")
-set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS} -O2 -s -std=c++20 -fexceptions -DNDEBUG -DkNO_KEYSTONE")
+set(DEPS_PATH ${CMAKE_CURRENT_SOURCE_DIR}/../deps)
 
-file(GLOB UE_SRC src/UE/*.cpp)
+# -----------------------------
+# KittyMemoryEx library
+# -----------------------------
+set(KITTYMEMORY_PATH "${DEPS_PATH}/KittyMemoryEx/KittyMemoryEx")
+file(GLOB KITTYMEMORY_SRC "${KITTYMEMORY_PATH}/*.cpp")
+set(KEYSTONE_LIB ${KITTYMEMORY_PATH}/Deps/Keystone/libs-android/${CMAKE_ANDROID_ARCH_ABI}/libkeystone.a)
 
-include_directories(${DEPS_PATH} ${KITTYMEMORY_PATH})
-link_libraries(-llog)
+# -----------------------------
+# Project sources
+# -----------------------------
+file(GLOB UE_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/UE/*.cpp)
+set(PROJ_SRC
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Utils/BufferFmt.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Dumper.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/UPackageGenerator.cpp
+    ${UE_SRC}
+    ${DEPS_PATH}/fmt/format.cc
+    ${KITTYMEMORY_SRC}
+)
 
-add_executable(UEDump3r_${CMAKE_ANDROID_ARCH} ${UE_SRC} src/executable.cpp src/Dumper.cpp src/UPackageGenerator.cpp ${KITTYMEMORY_SRC} ${DEPS_PATH}/fmt/format.cc)
-add_library(shared_UEDump3r_${CMAKE_ANDROID_ARCH} SHARED ${UE_SRC} src/library.cpp src/Dumper.cpp src/UPackageGenerator.cpp ${KITTYMEMORY_SRC} ${DEPS_PATH}/fmt/format.cc)
+if(BUILD_SHARED)
+    add_library(UEDump3r SHARED
+        ${PROJ_SRC}
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/library.cpp)
+else()
+    add_executable(UEDump3r
+        ${PROJ_SRC}
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Utils/ProgressUtils.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/executable.cpp)
+endif()
 
-target_compile_definitions(UEDump3r_${CMAKE_ANDROID_ARCH} PRIVATE kEXECUTABLE)
+# -----------------------------
+# Includes
+# -----------------------------
+target_include_directories(UEDump3r
+    PRIVATE
+        ${DEPS_PATH} ${KITTYMEMORY_PATH}
+)
+
+# -----------------------------
+# Compile definitions
+# -----------------------------
+target_compile_definitions(UEDump3r
+    PRIVATE
+        $<$<CONFIG:Debug>:DEBUG>
+        $<$<CONFIG:Release>:NDEBUG>
+        $<$<NOT:$<BOOL:${BUILD_SHARED}>>:kEXECUTABLE>
+        $<$<BOOL:${KT_DISABLE_KEYSTONE}>:kNO_KEYSTONE>
+)
+
+# -----------------------------
+# Compile options
+# -----------------------------
+target_compile_options(UEDump3r
+    PRIVATE
+        $<$<CONFIG:Debug>:-O0 -g>
+        $<$<CONFIG:Release>:-O2>
+        -Wall
+        -Wextra
+        -Werror
+        -fexceptions
+        -Wno-unused-command-line-argument
+)
+
+# -----------------------------
+# Platform-specific libraries
+# -----------------------------
+if(ANDROID)
+    target_link_libraries(UEDump3r
+    PRIVATE
+        log
+        $<$<NOT:$<BOOL:${KT_DISABLE_KEYSTONE}>>:${KEYSTONE_LIB}>
+    )
+endif()

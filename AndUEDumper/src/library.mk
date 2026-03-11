@@ -8,7 +8,7 @@ DEPS_SRC  = $(DEPS_PATH)/fmt/format.cc $(KITTYMEMORY_SRC)
 
 include $(CLEAR_VARS)
 
-LOCAL_MODULE := shared_UEDump3r_$(TARGET_ARCH)
+LOCAL_MODULE := UEDump3r
 
 LOCAL_CPPFLAGS += -fexceptions -std=c++17 -DkNO_KEYSTONE
 
